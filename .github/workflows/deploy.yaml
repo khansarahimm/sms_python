@@ -1,0 +1,57 @@
+name: Deploy Python App to AWS EC2
+
+on:
+  push:
+    branches:
+      - main  # Runs when code is pushed to main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Install Dependencies
+      run: |
+        python -m venv venv
+        source venv/bin/activate
+        pip install -r requirements.txt
+
+    - name: Deploy to EC2
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USER }}
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          # Navigate to the project directory (or clone if not exists)
+          cd /home/ubuntu/student-management-system || git clone https://github.com/khansarahimm/student-management-system.git
+          cd student-management-system
+
+          # Pull latest changes
+          git reset --hard
+          git pull origin main
+
+          # Set up virtual environment
+          python3 -m venv venv
+          source venv/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+          # Run Django migrations if applicable
+          if [ -f "manage.py" ]; then
+            python manage.py makemigrations
+            python manage.py migrate
+          fi
+
+          # Restart the service
+          sudo systemctl restart sms_app
+
+          echo "✅ Deployment successful!"
